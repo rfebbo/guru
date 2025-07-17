@@ -138,7 +138,7 @@ def get_tv_pairs(v_cycle, rise_time = 200e-12):
 def convert_str_to_num(string):
     # look for a number with or without a decimal 
     # followed by 0 or more numbers then a lower case or upper case letter
-    res = re.findall('(\d+\.?\d*)([a-z]|[A-Z])', string)
+    res = re.findall(r'(\d+\.?\d*)([a-z]|[A-Z])', string)
     num = 0
     if len(res) > 0:
         n = float(res[0][0])
@@ -243,6 +243,35 @@ def search_sb(search_string: str, ws, path: str, condition:Callable[[str, str], 
         if p.count('.') < max_depth:
             search_sb(search_string, function_pointer, p, condition=condition, max_depth=max_depth)
 
+def create_vsource(sch,
+                   type,
+                    pos,
+                    name,
+                    p_name,
+                    n_name="gnd!",
+                    rotation="R0"):
+    
+    v_src = sch.create_instance(
+        "analogLib",
+        type,
+        pos,
+        name,
+        rotation
+    )
+
+    sch.create_wire(
+        [v_src.pins.PLUS, [v_src.pins.PLUS.x, v_src.pins.PLUS.y + 4.0]],
+        p_name,
+        [1.0, 3.0],
+    )
+
+    sch.create_wire(
+        [v_src.pins.MINUS, [v_src.pins.MINUS.x, v_src.pins.MINUS.y - 4.0]],
+        n_name,
+        [1.0, -1.5],
+    )
+
+    return v_src
 
 def props_to_layout(props):
     new_props = props.copy()

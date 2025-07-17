@@ -55,7 +55,7 @@ stims['D'] = {'function' : 'pwl', 'wave' : vp.create_wave([0.0, 3.3], 20e-9, 200
 
 # bit stimulus
 # for multiple bit stimuli using the same parameters use this variable to set the defaults
-s.bit_stim_defaults = {'val0' : 0, 'val1' : 3.3, 'period' : 2e-8, 'rise' : 1e-9, 'fall' : 1e-9}
+s.td_stim_defaults = {'val0' : 0, 'val1' : 3.3, 'period' : 2e-8, 'rise' : 1e-9, 'fall' : 1e-9}
 # to change anything just add the key and value to the stimuli
 stims['G'] = {'function' : 'bit', 'data' : '11000'}
 
