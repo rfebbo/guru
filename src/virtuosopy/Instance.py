@@ -17,8 +17,6 @@ class _Params:
                     param_name = x.name.replace("?", "")
                     self.names.append(param_name)
                     setattr(self, param_name, x)
-            else:
-                print(f"Instance.py Warning: unable to get params for instance '{inst.name}'")
         else:
             print(f"Instance.py Warning: unable to get inst CDF for '{inst.name}'")
 
@@ -115,6 +113,7 @@ class _Inst:
         self.name = name
 
         inst_cv = ws.db.open_cell_view(lib_name, cell_name, "symbol")
+        
         inst = ws.sch.create_inst(self.cv, inst_cv, name, list(self.vpos), rot)
         # inst = ws.sch.create_inst("analogLib", "nfet", "D0", [0., 0.], "R0")
 

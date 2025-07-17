@@ -59,7 +59,8 @@ See Examples directory or **Usage** section below for more information.
 # If overwrite=False and you try to create an instance that already exists you will get an error.
 sch = vp.Schematic('vp_demonstration', 'example_circuit', overwrite=True)
 
-# create a nmos and print its details
+
+# create a nmos positioned at 0,0
 nmos = sch.create_instance('analogLib', 'nmos4', [0.,0.], 'nmos')
 
 ```
@@ -91,7 +92,7 @@ print(nfet)
 
 ```python
 # connect the body to the source
-sch.create_wire([nmos.pins.S, nmos.pins.B], 'B')
+sch.create_wire(positions=[nmos.pins.S, nmos.pins.B], net_name='B')
 ```
 
 **4. Quick Instance Placement**

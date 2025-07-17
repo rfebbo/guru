@@ -27,16 +27,22 @@ class Simulator:
      -retieves data from Virtuoso in a readable format\n
      -plotting\n
     '''
-    def __init__(self, sch, model_files = None, view='schematic', show_netlist = False, verbose=True):
+    def __init__(self, sch, model_files = None, view='schematic', show_netlist = False, verbose=True, output_dir=None):
         self.sch = sch
         self.verbose = verbose
         self.temp = 27
+
+        if output_dir != None:
+            self.output_dir = output_dir
+        else:
+            self.output_dir = os.getcwd()
 
         # set simulator
         self.sch.ws['simulator'](Symbol('spectre'))
 
         self.sch.ws['design'](sch.lib_name, sch.cell_name, view, 'w')
-        self.sch.ws['resultsDir'](os.getcwd() + f'/sim_output/{self.sch.cell_name}')
+            
+        self.sch.ws['resultsDir'](self.output_dir + f'/sim_output/{self.sch.cell_name}')
 
         if sch.ws['createNetlist'](recreate_all=True, display=show_netlist) == None:
             if self.verbose:
@@ -74,8 +80,8 @@ class Simulator:
         self.custom_wave_names = []
         self.cust_data_types = []
 
-        # spectre stimuli
-        self.bit_stim_defaults = {'val0' : 0, 'val1' : 1.2, 'period' : 1e-9, 'rise' : 200e-12, 'fall' : 200e-12}
+        # spectre stimuli defaults for bit and pulse
+        self.td_stim_defaults = {'val0' : 0, 'val1' : 1.2, 'period' : 1e-9, 'rise' : 200e-12, 'fall' : 200e-12}
 
         # plot widgets (checkboxes)
         self.groups = []
@@ -112,12 +118,14 @@ class Simulator:
     # _vmtop (mtop 0) vsource wave=[ 0 800.0m 2n 1.2 5n 0 ] type=pwl
     # _vvg (vg 0) vsource dc=1.2 type=dc
     # _vout_2 (out_2 0) vsource dc=1.2 type=dc
+    # _vY (Y 0) vsource val0=0 val1=3.3 period=1u rise=20p fall=20p width=.5u type=pulse
+
 
 # spectre snipit using stimulus file:
     # stimulusFile( ?xlate nil
     #     "/<path to netlist>/_graphical_stimuli.scs")
     def apply_stims(self, stims):
-        stim_filename = os.getcwd() + f'/sim_output/{self.sch.cell_name}/graphical_stimuli.scs'
+        stim_filename = self.output_dir + f'/sim_output/{self.sch.cell_name}/graphical_stimuli.scs'
 
         stim_functions = ['bit', 'pwl', 'dc']
 
@@ -134,16 +142,19 @@ class Simulator:
                 if 'current' in s:
                     s['voltage'] = s['current']
 
-                if s['function'] == 'bit':
-                    for d in self.bit_stim_defaults.keys():
+                if s['function'] == 'bit' or s['function'] == 'pulse':
+                    for d in self.td_stim_defaults.keys():
                         if d not in s:
-                            s[d] = self.bit_stim_defaults[d]
-                    
+                            s[d] = self.td_stim_defaults[d]
+                
+                if s['function'] == 'bit':
                     f.write(f"""_{s['type']}{name} ({name} 0) {s['type']}source data="{s['data']}" rptstart=1 rpttimes=0 val1={s['val1']} val0={s['val0']} rise={s['rise']} fall={s['fall']} period={s['period']} type=bit\n""")
                 elif s['function'] == 'pwl':
                     f.write(f"""_{s['type']}{name} ({name} 0) {s['type']}source wave=\\[ {s['wave']} \\] type=pwl\n""")
                 elif s['function'] == 'dc':
                     f.write(f"""_{s['type']}{name} ({name} 0) {s['type']}source dc={s['voltage']} type=dc\n""")
+                elif s['function'] == 'pulse':
+                    f.write(f"""_{s['type']}{name} ({name} 0) {s['type']}source val0={s['val0']} val1={s['val1']} period={s['period']} rise={s['rise']} fall={s['fall']} width={s['width']} type=pulse\n""")
                 else:
                     print(f"Unknown stim function '{s['function']}'. Please use one of: \n\t{stim_functions}")
 
@@ -166,14 +177,13 @@ class Simulator:
         self.waves[pinfname] = {}
         self.waves[pinfname]['type'] = sig_type
 
-        if sig_type not in self.cust_data_types:
-            self.cust_data_types.append(sig_type)
-
         if group != None:
             self.waves[pinfname]['group'] = group
             if group not in self.groups:
                 self.groups.append(group)
-
+        elif sig_type not in self.cust_data_types:
+            self.cust_data_types.append(sig_type)
+        
     def track_net(self, net, group=None, sig_type='Voltage'):
         if not isinstance(net, str):
             if self.verbose:
@@ -185,13 +195,13 @@ class Simulator:
         self.waves[net_name] = {}
         self.waves[net_name]['type'] = sig_type
 
-        if sig_type not in self.cust_data_types:
-            self.cust_data_types.append(sig_type)
 
         if group != None:
             self.waves[net_name]['group'] = group
             if group not in self.groups:
                 self.groups.append(group)
+        elif sig_type not in self.cust_data_types:
+            self.cust_data_types.append(sig_type)
 
     # enables the user to provide a custom function for calculating things such as resistance
     # fn - a funciton which will recieve an array of np arrays of the requested pins
@@ -569,20 +579,23 @@ class Simulator:
             if 'no plot' in self.waves[name]:
                 continue
 
-            y_label = self.waves[name]['type']
-            self.ax_info[y_label]['count'] += 1
             if 'group' in self.waves[name]:
-                cur_ax = ax_dict[self.waves[name]['group']]
+                ax_des = self.waves[name]['group']
+                ax_dict[ax_des].set_title(ax_des)
             else:
-                cur_ax = ax_dict[y_label]
+                ax_des = self.waves[name]['type']
+                
+            self.ax_info[ax_des]['count'] += 1
+            cur_ax = ax_dict[ax_des]
+
             plot_y = self.waves[name]['y']
             if self.param_sets == None:
                 plot_y = [plot_y]
             pls = []
             for (i,x), y in zip(enumerate(plot_x), plot_y):
-                pls.append(cur_ax.plot(x * 1e9, y, label=name, linestyle=linestyles[i], color=colors[self.ax_info[y_label]['count']-1])[0])
+                pls.append(cur_ax.plot(x * 1e9, y, label=name, linestyle=linestyles[i], color=colors[self.ax_info[ax_des]['count']-1])[0])
                 if i == 0:
-                    legend_elements[y_label].append(Line2D([0], [0], color=colors[self.ax_info[y_label]['count']-1], label=name))
+                    legend_elements[ax_des].append(Line2D([0], [0], color=colors[self.ax_info[ax_des]['count']-1], label=name))
 
             cur_ax.set_ylabel(self.waves[name]['type'])
             self.waves[name]['ax'] = cur_ax
@@ -626,7 +639,7 @@ class Simulator:
             h = w.HBox(ch_bxs)
             display(h)
 
-        plt.tight_layout()
+        # plt.tight_layout()
 
         if isinstance(save, str):
             plt.savefig(save)
