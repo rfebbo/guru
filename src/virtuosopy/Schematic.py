@@ -9,8 +9,8 @@ class Schematic:
     def __init__(self, lib_name, cell_name, ws_name="default", overwrite=False, verbose=True):
 
         if ws_name == "default":
-            net_id = os.getenv('USER')
-            ws = Workspace.open(workspace_id=f'{net_id}_0')
+            unix_username = os.getenv('USER')
+            ws = Workspace.open(workspace_id=f'{unix_username}_0')
 
         else:
             ws = Workspace.open(workspace_id=ws_name)
@@ -35,7 +35,6 @@ class Schematic:
         
         self.instances_params = []
         self.wires = []
-        self.wire_labels = []
         self.notes = []
         self.pins = []
 
@@ -60,18 +59,17 @@ class Schematic:
 
         for pin_params in sch.pins:
             inputCVId = new_schematic.ws.db.open_cell_view("basic", pin_params[0], "symbol")
-            new_schematic.ws.sch.create_pin(new_schematic.cv, inputCVId, *pin_params)
+            new_schematic.ws.sch.create_pin(new_schematic.cv, inputCVId, *pin_params[1:])
             new_schematic.pins.append(pin_params)
 
-        for wire_params in sch.wires:
+        for (wire_params, label_params) in sch.wires:
             mode, arg2, pos, snap_spacing, snap_spacing, arg6 = wire_params
             w = new_schematic.ws.sch.create_wire(new_schematic.cv, mode, arg2, pos, snap_spacing,
                                                 snap_spacing, arg6)
-            new_schematic.wires.append(wire_params)
+            if label_params is not None:
+                new_schematic.ws.sch.create_wire_label(new_schematic.cv, w[0], *label_params)
 
-        for wire_label_params in sch.wire_labels:
-            new_schematic.ws.sch.create_wire_label(new_schematic.cv, *wire_label_params)
-            new_schematic.wire_labels.append(wire_label_params)
+            new_schematic.wires.append((wire_params, label_params))
 
         for note_params in sch.notes:
             new_schematic.ws.sch.create_note_label(new_schematic.cv, *note_params)
@@ -143,8 +141,8 @@ class Schematic:
                                     snap_spacing, 0.0)
         
         wire_params = (mode, "full", pos.copy(), snap_spacing, snap_spacing, 0.0)
-        self.wires.append(wire_params)
-
+        
+        label_params = None
         if net_name != None:
             l_pos = pos[0]
             if label_offset != None:
@@ -162,9 +160,11 @@ class Schematic:
                 snap_spacing,
                 None,
             )
-            label_params = (w[0], l_pos, net_name, "upperLeft", "R0", "fixed", snap_spacing, None)
-            self.wire_labels.append(label_params)
+            label_params = (l_pos, net_name, "upperLeft", "R0", "fixed", snap_spacing, None)
+            
 
+        
+        self.wires.append((wire_params, label_params))
         # self.wires.append(w)      
         return w
 
@@ -228,6 +228,7 @@ class Schematic:
         # CDF callbacks use the user applied parameters to calculate the actual parameters
         # Sometimes user applied parameters don't stick
         # let the user know if that happens:
+        rv = 0
         for _, i in self.instances.items():
             for a_p_name, a_p_value in i.applied_params.items():
                 if a_p_value == '' or a_p_value in self.param_vars or a_p_value in self.cdf_ignore:
@@ -247,22 +248,23 @@ class Schematic:
                     try:
                         if calc_val != app_val:
                             if self.verbose:
-                                print(f'Error: Calculated Parameter not equal to Applied Parameter for {a_p_name} on {i.name}.')
+                                print(f'Error: Calculated Parameter is not equal to Applied Parameter for {a_p_name} on {i.name}.')
                                 print(f'{i.params[a_p_name].value} != {a_p_value}')
-                            return 1
+                                print(f'calc_val: {type(calc_val)}, app_val: {type(app_val)}')
+                            rv = 1
                     
                         elif not np.isclose(calc_val, app_val):
                             if self.verbose:
-                                print(f'Error: Calculated Parameter not equal to Applied Parameter for {a_p_name} on {i.name}.')
+                                print(f'Error: Calculated Parameter is not close to Applied Parameter for {a_p_name} on {i.name}.')
                                 print(f'{i.params[a_p_name].value} != {a_p_value}')
-                            return 1
+                            rv = 1
                     except:
                         if calc_val == app_val:
                             continue
                         else:
                             print(f'Could not convert {calc_val} or {app_val} to float')
-        
-        return 0
+
+        return rv
 
     def save(self, do_callbacks=True):
         rv = 0

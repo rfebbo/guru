@@ -137,8 +137,8 @@ def get_tv_pairs(v_cycle, rise_time = 200e-12):
 # convert strings like 400n to 400e-9 or 0.4u to 400e-9
 def convert_str_to_num(string):
     # look for a number with or without a decimal 
-    # followed by 0 or more numbers then a lower case or upper case letter
-    res = re.findall(r'(\d+\.?\d*)([a-z]|[A-Z])', string)
+    # followed by 0 or more numbers then 0 or 1 lower case or upper case letter
+    res = re.findall(r'(\d+\.?\d*)([a-z]*|[A-Z]*)', string)
     num = 0
     if len(res) > 0:
         n = float(res[0][0])
@@ -171,7 +171,6 @@ def convert_str_to_num(string):
                 return string
     else:
         return string
-        # raise(Exception(f'Could not convert {string} into a number'))
     
     return num
 
