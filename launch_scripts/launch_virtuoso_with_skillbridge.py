@@ -19,7 +19,7 @@ def main(args):
         print('Launching with no arguments will launch a single session with a GUI')
         return
 
-    netid = os.getenv('USER')
+    unix_username = os.getenv('USER')
 
     n_virtuosos = n_virtuosos_gui + n_virtuosos_hidden
     if n_virtuosos < 1 or n_virtuosos > 10:
@@ -37,10 +37,10 @@ def main(args):
 
     for tid in range(n_virtuosos):
         
-        skill_filename = f'/home/{netid}/cadence/Virtuosopy/launch_scripts/skill_launch_files/start{tid}.il'
+        skill_filename = f'/home/{unix_username}/cadence/Virtuosopy/launch_scripts/skill_launch_files/start{tid}.il'
         with open(skill_filename, 'w') as f:
             f.write(f'load({sb_path})\n')
-            f.write(f'pyStartServer ?id "{netid}_{tid}" ?python "LD_LIBRARY_PATH= {python_path}"\n')
+            f.write(f'pyStartServer ?id "{unix_username}_{tid}" ?python "LD_LIBRARY_PATH= {python_path}"\n')
             f.write('load("~/cadence/Virtuosopy/launch_scripts/CCSinvokeCdfCallbacks.il")\n')
 
         
@@ -51,7 +51,7 @@ def main(args):
             subprocess.run([f'cd ~/cadence/{project_dir}; source ./toolsenv; virtuoso -restore {skill_filename} &'], shell='/bin/bash')
             n_virtuosos_gui -= 1
 
-        print(f'launched virtuoso with skillbridge with a workspace id: {netid}_{tid}')
+        print(f'launched virtuoso with skillbridge with a workspace id: {unix_username}_{tid}')
 
 if __name__ == '__main__':
 

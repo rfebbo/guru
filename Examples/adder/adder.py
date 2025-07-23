@@ -2,6 +2,8 @@ import virtuosopy as vp
 import numpy as np
 
 from multiprocessing import Pool
+# import multiprocess as mp
+# from multiprocess import Pool
 
 # Import PySwarms
 from pyswarms.single.global_best import GlobalBestPSO
@@ -215,44 +217,80 @@ def adder_score(s, period, stim_len):
 from typing import override
 import os
 
+def run_sim(args):
+    w, schematic, simulation_function, sim_args, score_function = args
+
+    s = adder_simulation(schematic, *sim_args)
+
+    p_values = {}
+    for param_j in range(len(w[0])):
+        p_values[f'w{param_j}'] = w[:, param_j].tolist()
+
+    s.run(plot_in_v=False, p_values=p_values)
+
+    if s.run_ok:
+        si = adder_score(s, period, len(stim_data['A']))
+    else:
+        si = [0] * len(stim_data['A'])
+
+    return si
+
 class circuit_optimizer:
-    def __init__(self, score_fn, simulation_fn, sim_args):
+    def __init__(self, score_fn, simulation_fn, sim_args, sch, n_particles, bounds, options, n_workspaces=1):
         self.score_function = score_fn
         self.simulation_function = simulation_fn
         self.sim_args = sim_args
+        self.schematic = sch
+        self.n_particles = n_particles
+        self.bounds = bounds
+        self.options = options
         self.method = None
+        self.n_workspaces = n_workspaces
 
-    def run_sim(self, args):
-        pass
+    def get_score_over_workspaces(self, w):
+        sims_per_workspace = len(w) // self.n_workspaces
+        leftover = len(w) % self.n_workspaces
 
-    def get_score_over_workspaces(self, w, n_workspaces):
-        sims_per_workspace = len(w) // n_workspaces
-        leftover = len(w) % n_workspaces
+        procs_args = []
 
-        args = []
-
-        net_id = os.getenv('USER')
+        unix_username = os.getenv('USER')
 
         for i in range(0, len(w) - leftover, sims_per_workspace):
-            args.append([w[i:i+sims_per_workspace], f'{net_id}_{i//sims_per_workspace}'])
+            procs_args.append([w[i:i+sims_per_workspace], f'{unix_username}_{i//sims_per_workspace}'])
 
         if leftover > 0:
             remaining_sims_start = len(w) - leftover
             remaining_sims = leftover
-            current_sim = n_workspaces - leftover
+            current_sim = self.n_workspaces - leftover
 
             while remaining_sims > 0:
-                args[current_sim] = [np.append(args[current_sim][0], w[remaining_sims_start:remaining_sims_start+1], axis=0), args[current_sim][1]]
+                procs_args[current_sim] = [np.append(procs_args[current_sim][0], w[remaining_sims_start:remaining_sims_start+1], axis=0), procs_args[current_sim][1]]
                 current_sim += 1
-                if current_sim >= n_workspaces:
+                if current_sim >= self.n_workspaces:
                     current_sim = 0
                 remaining_sims -= 1
                 remaining_sims_start += 1
 
+        # print(args)
+        # print(len(args))
+        # for i in args:
+        #     print(len(i[0]))
 
+        for i, args in enumerate(procs_args):
+            workspace = f'{unix_username}_{i//sims_per_workspace}'
+            args.append(vp.Schematic.from_sch(self.schematic,
+                                self.schematic.lib_name,
+                                self.schematic.cell_name + f'_{workspace}',
+                                workspace,
+                                overwrite=True, verbose=False))
+            # print(args[-1])
+            # print(self.schematic)
+            args.append(self.simulation_function)
+            args.append(self.sim_args)
+            args.append(self.score_function)
 
-        with Pool(processes=n_workspaces) as pool:
-            results = pool.map(self.run_sim, args)
+        with Pool(processes=self.n_workspaces) as pool:
+            results = pool.map(run_sim, procs_args)
 
         
         mapped_results = []
@@ -261,59 +299,22 @@ class circuit_optimizer:
                 mapped_results.append(r)
 
         if leftover > 0:
-            for res in results[n_workspaces - leftover:]:
+            for res in results[self.n_workspaces - leftover:]:
                 mapped_results.append(res[-1])
                 
 
         return mapped_results
 
     def get_score(self, w):
-        n_workspaces = 1
 
-        if n_workspaces > 1:
-            return self.get_score_over_workspaces(w, n_workspaces)
-
-        si = self.run_sim([w, 'default'])
+        if self.n_workspaces > 1:
+            return self.get_score_over_workspaces(w)
+        
+        si = run_sim([w, self.schematic, self.simulation_function, self.sim_args, self.score_function])
         return si
 
-class static_pso(circuit_optimizer):
-    def __init__(self, score_fn, simulation_fn, sim_args, sch, n_particles, bounds, options):
-        super().__init__(score_fn, simulation_fn, sim_args)
 
-        self.schematic = sch
-        self.method = 'static pso'
-        self.bounds = bounds
-        self.n_particles = n_particles
-        self.options = options
 
-        self.method = 'static pso'
-
-    @override
-    def run_sim(self, args):
-        w, workspace = args
-        print(f'workspace = {workspace}')
-
-        sch = vp.Schematic.from_sch(self.schematic,
-                                    self.schematic.lib_name, 
-                                    self.schematic.cell_name + f'_copy_{workspace}', 
-                                    workspace, 
-                                    overwrite=True, verbose=False)
-        
-        
-        s = self.simulation_function(sch, *self.sim_args)
-        
-        p_values = {}
-        for param_j in range(len(w[0])):
-            p_values[f'w{param_j}'] = w[:, param_j].tolist()
-
-        s.run(plot_in_v=False, p_values=p_values)
-
-        if s.run_ok:
-            si = self.score_function(s, period, len(stim_data['A']))
-        else:
-            si = [0] * len(stim_data['A'])
-
-        return si
 
 
 if __name__ == '__main__':
@@ -326,7 +327,7 @@ if __name__ == '__main__':
     }
 
     options = {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
-    n_particles = 1
+    n_particles = 2
 
     # w = [np.ones(n_fets) * i * 10 for i in range(n_particles)]
     # print(f'Initial weights: {w}')
@@ -339,15 +340,16 @@ if __name__ == '__main__':
     w_max = 500e-9 * np.ones(n_fets)
     bounds = (w_min, w_max)
 
-    opt = static_pso(adder_score, adder_simulation,
+    opt = circuit_optimizer(adder_score, adder_simulation,
                      sim_args=(period, stim_data),
                      sch=sch,
                      n_particles=n_particles,
                      bounds=bounds,
-                     options=options)
+                     options=options,
+                     n_workspaces=1)
 
     optimizer = GlobalBestPSO(n_particles=n_particles, dimensions=n_fets, options=options, bounds=bounds)
-    cost, pos = optimizer.optimize(opt.get_score, iters=100)
+    cost, pos = optimizer.optimize(opt.get_score, iters=2)
 
     print(optimizer.cost_history)
     print(f'Best cost: {cost}')
