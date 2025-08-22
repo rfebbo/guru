@@ -1,4 +1,4 @@
-import virtuosopy as vp
+import guru as vp
 
 # This creates (or overwrites if it exists) a schematic called example_circuit under the vp_demonstration library
 # If overwrite=True is not there and you try to create an instance that already exists you will get an error.

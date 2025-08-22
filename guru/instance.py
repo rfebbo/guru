@@ -1,7 +1,7 @@
-from collections import namedtuple
 import numpy as np
+from skillbridge import Workspace
 
-from .vp_utils import *
+from .utils import i_transform, rotate, internal_iter, calc_center, transform, snap_spacing
 
 
 # holds parameter information and allows setting of parameters
@@ -85,16 +85,13 @@ class _Pins:
 
 # Allows creation and manipulation of a symbol in a schematic
 class _Inst:
-    def __init__(self, ws, cv, lib_name, cell_name, pos, name, rot):
-
+    def __init__(self, ws : Workspace, cv, lib_name, cell_name, pos, name, rot):
         self.ws = ws
         self.cv = cv
         
         self.pos = np.asarray(pos)
-        if lib_name in pos_table and cell_name in pos_table[lib_name]:
-            # self.pos += pos_table[lib_name][cell_name]
-
-            self.vpos = transform(self.pos+pos_table[lib_name][cell_name])
+        if 'fet' in cell_name or 'mos' in cell_name:
+            self.vpos = transform(self.pos + [-0.25/snap_spacing, 0.])
         else:
             self.vpos = transform(self.pos)
 
@@ -112,21 +109,16 @@ class _Inst:
         self.cell_name = cell_name
         self.name = name
 
-        inst_cv = ws.db.open_cell_view(lib_name, cell_name, "symbol")
+        inst_cv = ws.db.open_cell_view_by_type(lib_name, cell_name, "symbol")
         
         inst = ws.sch.create_inst(self.cv, inst_cv, name, list(self.vpos), rot)
-        # inst = ws.sch.create_inst("analogLib", "nfet", "D0", [0., 0.], "R0")
-
-
+        
         self.inst_cv = inst_cv
         self.inst = inst
 
         self.applied_params = {}
         self.params = _Params(self)
         self.pins = _Pins(self)
-        # if cell_name == 'dgxnfet':
-        #     self.params['s'] = 0
-        #     self.params['d'] = 0
 
     def __setitem__(self, key, value):
         self.applied_params[key] = value

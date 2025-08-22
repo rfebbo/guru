@@ -1,16 +1,16 @@
-## **What is Virtuosopy?**
+## **What is guru?**
 
-Virtuosopy is a Python interface to Cadence Virtuoso and uses the Python library SkillBridge. With Virtuosopy, schematics can be created and Spectre simulations can be run.
+guru is a Python interface to Cadence Virtuoso and uses the Python library [skillbridge](https://github.com/unihd-cag/skillbridge). With guru, schematics can be created and Spectre simulations can be run.
 
 See Examples directory or **Usage** section below for more information.
 
 ## **Getting Started**
-1. Install anaconda (link may be out of date). Go to anaconda.com and right click on the green Linux download button and copy link to get an updated link.
+1. Install anaconda (link is of date). Go to anaconda.com and right click on the green Linux download button and copy link to get an updated link.
 
         cd ~/Downloads
-        wget https://repo.anaconda.com/archive/Anaconda3-2022.10-Linux-x86_64.sh
+        wget https://repo.anaconda.com/archive/Anaconda3-2025.06-0-Linux-x86_64.sh
         chmod +x ./Anaconda3-2022.10-Linux-x86_64.sh
-        ./Anaconda3-2022.10-Linux-x86_64.sh
+        ./Anaconda3-2025.06-0-Linux-x86_64.sh
 
 1. Restart terminal
 1. Disable activation of conda at startup
@@ -21,43 +21,45 @@ See Examples directory or **Usage** section below for more information.
 
 1. Create a virtual environment 
         
-        conda create -n vp_env
+        conda create -n guru_env
 
-1. Activate the virtual environment called 'vp_env' and install python
+1. Activate the virtual environment called 'guru_env' and install python
 
-        conda activate vp_env
+        conda activate guru_env
         conda install python
 
-1. Install Virtuosopy (must have cadence virtuoso setup)
+1. Install guru (must have cadence virtuoso setup)
 
         cd ~
         cd cadence
-        git clone https://github.com/rfebbo/Virtuosopy.git
-        cd Virtuosopy
-        cd src
+        git clone https://github.com/rfebbo/guru.git
+        cd guru
         pip install --editable .
 
-1. Start Virtuoso (in VNC session terminal) (Note: troubleshooting below)
+1. Start Virtuoso (in VNC session terminal) (Note: troubleshooting below for manual launch)
         
         cd launch_scripts
-        python ./launch_virtuoso_with_skillbridge.py <virtuoso_directory>
+        python ./launch_virtuoso_with_skillbridge.py
 
-1. In the Virtuoso that opened, create a library called 'vp_demonstration'
+## Running the NCSU example
 
-1. Run the python example file or Open and run example notebook in the examples folder using your favorite notebook editor (I recommend VS Code with SSH)
+1. With the NCSU PDK installed, place the model files (ami06N.m, ami06P.m) in the model/ami06/ directory or edit the example to point to your model files
+
+1. Run the python example file
         
-        python ./Examples/01a_Schematics_and_Simulations.py
+        cd ./examples/01_NCSU_Inverter/
+        python sch_and_sim_inverter.py
 
-1. This will create a schematic you can open in the Virtuoso Library Manager
+1. This will create a schematic you can open in the Virtuoso Library Manager under the vp_ncsu_examples library
 
 ## **Usage**
 
 ### **Creating a schematic, placing instances, placing pins, and drawing wires:**
 **1. Opening a schematic and placing an instace**
 ```python
-# This creates (or overwrites if it exists) a schematic called example_circuit under the vp_demonstration library
+# This creates (or overwrites if it exists) a schematic called example_circuit under the vp_ncsu_examples library
 # If overwrite=False and you try to create an instance that already exists you will get an error.
-sch = vp.Schematic('vp_demonstration', 'example_circuit', overwrite=True)
+sch = vp.Schematic('vp_ncsu_examples', 'example_circuit', overwrite=True)
 
 
 # create a nmos positioned at 0,0
@@ -166,7 +168,7 @@ If you launch multiple sessions, then when you are opening a schematic you need 
 ## **Known Issues**
 
 ### **CDF Instance Parameter Mismatch**
-Currently when setting parameters for instances like the width of a transistor, 'wt', there can be unpredicable behavior. To help with this, when a save is performed the CDF callbacks are performed for each instance in the schematic. Then the user requested parameters are checked against the actual ones and if there is a difference Virtuosopy will warn the user. Also, as seen in the example setting 'wf' to a blank string helps produce predictable behabior.
+Currently when setting parameters for instances like the width of a transistor, 'wt', there can be unpredicable behavior. To help with this, when a save is performed the CDF callbacks are performed for each instance in the schematic. Then the user requested parameters are checked against the actual ones and if there is a difference guru will warn the user. Also, as seen in the example setting 'wf' to a blank string helps produce predictable behabior.
 
 ### **Calling Redraw without a window open results in a error**
 

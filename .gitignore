@@ -1,6 +1,6 @@
 launch_scripts/skill_launch_files
 **/sim_output
 *.pyc
-src/Virtuosopy.egg-info
+**/guru.egg-info
 .vscode
 **/projects

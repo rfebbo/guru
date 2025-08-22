@@ -1,21 +1,15 @@
 # aided by: https://iamanintrovert.github.io/notes/Running-Spectre-Simulation-from-python/
 # aided by: https://github.com/unihd-cag/skillbridge/blob/master/docs/examples/custom_functions.rst
 import matplotlib.pyplot as plt
-import matplotlib as mpl
-mpl.rcParams['axes.formatter.useoffset'] = False
 
 from matplotlib.lines import Line2D
 import matplotlib.colors as mcolors
-from .Instance import _Pin
-from .vp_utils import *
+from .instance import _Pin
+from .utils import *
 
-# from skillbridge.client.translator import Symbol
 from skillbridge.client.hints import Symbol
 import numpy as np
 import os
-
-import ipywidgets as w
-from IPython.display import display
 
 import time
 
@@ -488,61 +482,6 @@ class Simulator:
             return 1
         return 0
 
-    # for the checkboxes in the interactive plot
-    def toggle(self, state):
-        if isinstance(state['new'], bool):
-            mins = []
-            maxes = []
-            ax = None
-            ax_type = None
-            for name in self.waves:
-                if 'group' in self.waves[name]:
-                    for pl in self.waves[name]['pl']:
-                        if self.waves[name]['group'] == state['owner'].description:
-                            # set the wave equal to the checkbox value
-                            pl.set_visible(state['new'])
-
-                            # track the number of visible waves in this ax
-                            if state['new'] == True:
-                                self.ax_info[self.waves[name]['type']]['count'] += 1
-                                pl.set_label(name)
-                            else:
-                                self.ax_info[self.waves[name]['type']]['count'] -= 1
-                                pl.set_label('_nolegend_')
-
-                            # set the number of columns in the legend so that it is not taller than 5
-                            ncol = np.max((1,int(self.ax_info[self.waves[name]['type']]['count']/ 5)))
-                            self.waves[name]['ax'].legend(loc=(1.01,0.0), ncol = ncol)
-
-                            # store the ax and type so we can change the limits
-                            ax_type = self.waves[name]['type']
-                            ax = self.waves[name]['ax']
-                            # self.waves[name]['ax'].set_ylim((0.0,1.0))
-
-            # resize the axis ylim
-            if ax != None:
-                for name in self.waves:
-                    if self.waves[name]['type'] == ax_type:
-                        for pl in self.waves[name]['pl']:
-                            if pl.get_visible():
-                                mins.append(np.min(self.waves[name]['y']))
-                                maxes.append(np.max(self.waves[name]['y']))
-
-                
-                if len(mins) > 0:
-                    ax_min = min(mins) * self.ax_info[ax_type]['scale_factor']
-                    ax_max = max(maxes) * self.ax_info[ax_type]['scale_factor']
-                    border = (ax_max - ax_min) * 0.1
-                    ax_min -= border
-                    ax_max += border
-                    ax.set_ylim((ax_min,ax_max))
-
-
-            
-            self.fig.canvas.draw()
-            # plt.autoscale()
-            # plt.draw()
-
     def plot(self, interactive=False, save=None):
 
         self.ax_info = {}
@@ -616,30 +555,14 @@ class Simulator:
                         
                     p = p[:-2] + ']'
                     legend_elements[l].append(Line2D([0], [0], color='k', linestyle=linestyles[i], label=f'{p} = {v}'))
-            
-            ax_i.legend(handles=legend_elements[l], loc=(1.01,0.0), shadow=True)
+
+            ax_i.legend(handles=legend_elements[l], bbox_to_anchor=(1.01,0.0), loc='upper left', shadow=True)
             # ax_i.legend(loc=(1.01,0.0), ncol = ncol)
     
         ax[-1].set_xlabel('Time (ns)')
 
-        if interactive:
-            # widgets (check boxes)
-            ch_bxs = []
-            for g in self.groups:
-                c = w.Checkbox(
-                    value=True,
-                    description=g,
-                    disabled=False,
-                    indent=False
-                )
-                c.observe(self.toggle)
-                ch_bxs.append(c)
-
-            
-            h = w.HBox(ch_bxs)
-            display(h)
-
-        # plt.tight_layout()
+        # plt.tight_layout(rect=[0, 0, 0.85, 1])
+        plt.subplots_adjust(right=0.5)
 
         if isinstance(save, str):
             plt.savefig(save)

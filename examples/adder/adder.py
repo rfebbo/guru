@@ -1,11 +1,9 @@
-import virtuosopy as vp
+import guru as vp
 import numpy as np
-
+import matplotlib.pyplot as plt
 from multiprocessing import Pool
-# import multiprocess as mp
-# from multiprocess import Pool
+import os
 
-# Import PySwarms
 from pyswarms.single.global_best import GlobalBestPSO
 
 # creates a stack of nmoses and pmoses
@@ -14,48 +12,43 @@ def stack(sch : vp.Schematic, pos, np, nn, labels, stack_num, width_iter):
     ns = []
 
     if np > 0:    
-        p = sch.create_instance('analogLib', 'pmos4', pos, f'pm{stack_num}_0')
+        p = sch.create_instance('cmos10lpe', 'pfet', pos, f'pm{stack_num}_0')
         sch.create_wire([p.pins.G,p.pins.G.pos + [-1., 0.]], labels[0])
         sch.create_wire([p.pins.B,p.pins.B.pos + [1., 0.]], 'vdd!')
-        p['model'] = 'pfet'
         p['l'] = '10n'
         p['w'] = next(width_iter)
         ps.append(p)
         for i in range(1, np):
-            p = sch.create_instance('analogLib', 'pmos4', vp.ConnPos(ps[-1].pins.D, 'S', 'below'), f'pm{stack_num}_{i}')
+            p = sch.create_instance('cmos10lpe', 'pfet', vp.ConnPos(ps[-1].pins.D, 'S', 'below'), f'pm{stack_num}_{i}')
             
             sch.create_wire([p.pins.G,p.pins.G.pos + [-1., 0.]], labels[np])
             sch.create_wire([p.pins.B,p.pins.B.pos + [1., 0.]], 'vdd!')
-            p['model'] = 'pfet'
             p['w'] = next(width_iter)
             ps.append(p)
 
         sch.create_wire([ps[0].pins.S, ps[0].pins.S.pos + [0.,2.]], 'vdd!')
 
     if nn > 0:
-        n = sch.create_instance('analogLib', 'nmos4', vp.ConnPos(ps[-1].pins.D, 'D', 'below'), f'nm{stack_num}_{0}')
+        n = sch.create_instance('cmos10lpe', 'nfet', vp.ConnPos(ps[-1].pins.D, 'D', 'below'), f'nm{stack_num}_{0}')
         sch.create_wire([n.pins.G,n.pins.G.pos + [-1.,0.]], labels[np])
         sch.create_wire([n.pins.B,n.pins.B.pos + [1.,0.]], 'gnd!')
-        n['model'] = 'nfet'
         n['l'] = '10n'
         n['w'] = next(width_iter)
         ns.append(n)
         for i in range(1, nn):
-            n = sch.create_instance('analogLib', 'nmos4', vp.ConnPos(ns[-1].pins.S, 'D', 'below'), f'nm{stack_num}_{i}')
+            n = sch.create_instance('cmos10lpe', 'nfet', vp.ConnPos(ns[-1].pins.S, 'D', 'below'), f'nm{stack_num}_{i}')
             sch.create_wire([n.pins.G,n.pins.G.pos + [-1.,0.]], labels[i+np])
             sch.create_wire([n.pins.B,n.pins.B.pos + [1.,0.]], 'gnd!')
-            n['model'] = 'nfet'
             n['w'] = next(width_iter)
             ns.append(n)
 
         sch.create_wire([ns[-1].pins.S, ns[-1].pins.S.pos + [0.,-2.]], 'gnd!')
 
-
     return ps, ns
 
 def create_adder(ws_name='default'):
     w = [f'w{i}' for i in range(17)]
-    sch = vp.Schematic('vp_demonstration', f'AP_ADD_1_{ws_name}', ws_name, overwrite=True)
+    sch = vp.Schematic('vp_demonstration', f'AP_ADD_1', ws_name, overwrite=True)
 
     # store the nmoses and pmoses so we can reference them for routing wires
     pmoses = []
@@ -127,10 +120,10 @@ def adder_simulation(sch, period, stim_data):
 
     stims['Cin'] = {'function' : 'bit', 'data' : stim_data['Cin']}
 
-    model_files = ['../../model/FinFET/14nfet.pm', '../../model/FinFET/14pfet.pm']
+    # model_files = ['../../model/FinFET/14nfet.pm', '../../model/FinFET/14pfet.pm']
 
     s = vp.Simulator(sch, model_files)
-    s.tran(f"{len(stim_data['A']) * period}")
+    s.tran(f"{len(stim_data['A']) * period}", 'conservative')
 
     s.td_stim_defaults = {'val0' : 0, 'val1' : 0.8, 'period' : 20e-9, 'rise' : 1e-9, 'fall' : 1e-9}
     s.apply_stims(stims)
@@ -143,6 +136,8 @@ def adder_simulation(sch, period, stim_data):
     s.track_net('Cout_b', group='Output Voltage')
 
     s.track_net(':pwr', 'power', 'Power')
+
+    s.track_pin(sch.instances['V_VDD_0V800'].pins['PLUS'], 'current', 'Current')
 
     return s
 
@@ -202,36 +197,75 @@ def adder_score(s, period, stim_len):
             if cout == cout_correct:
                 n_correct += 1
 
-        total_power = s.waves['/:pwr']['y'][i][index]
-        # area =  
-        if n_correct / (len(sample_times) * 2) != 0.75:
-            Scores.append(0)
+        total_power = np.sum(s.waves['/V_VDD_0V800/PLUS']['y'][i])
+        
+        area = 0
+        for d in s.param_sets.values():
+            area += float(d[i])
+        if n_correct / (len(sample_times) * 2) < 0.75:
+            Scores.append(None)
         else:
-            Scores.append(-total_power)
+            Scores.append((total_power, area))
+            # Scores.append(-total_power)
         # print(f'{int(s_t*1e9)}\t\t{a}\t{b}\t{cin}\t{sum_out}({sum_correct})\t{cout}({cout_correct})')
 
     # print(f'Correct outputs: {n_correct}/{len(sample_times) * 2}')
 
     return Scores
 
-from typing import override
-import os
-
 def run_sim(args):
-    w, schematic, simulation_function, sim_args, score_function = args
+    w, workspace, schematic_dict, simulation_function, sim_args, score_function = args
 
-    s = adder_simulation(schematic, *sim_args)
+    assert len(w[0]) == len(schematic_dict['param_vars']), f"Number of weights does not match number of parameters in schematic. Expected {len(schematic_dict['param_vars'])}, got {len(w)}"
+
+    # return np.mean(w, axis=1)
+    cv_name = f'{schematic_dict['cell_name']}_workspace_{workspace}'
+    schematic = vp.Schematic.from_dict(schematic_dict, schematic_dict['lib_name'], cv_name, ws_name=workspace)
+
+    s = simulation_function(schematic, *sim_args)
 
     p_values = {}
     for param_j in range(len(w[0])):
         p_values[f'w{param_j}'] = w[:, param_j].tolist()
-
+    
     s.run(plot_in_v=False, p_values=p_values)
-
+    
     if s.run_ok:
-        si = adder_score(s, period, len(stim_data['A']))
+        si = score_function(s, period, len(stim_data['A']))
     else:
-        si = [0] * len(stim_data['A'])
+        si = [None] * len(w[0])
+    
+    schematic.delete_cell_view()
+
+    return si
+
+
+def run_test(args):
+    w, workspace, schematic_dict, simulation_function, sim_args, score_function = args
+
+    assert len(w[0]) == len(schematic_dict['param_vars']), f"Number of weights does not match number of parameters in schematic. Expected {len(schematic_dict['param_vars'])}, got {len(w)}"
+
+    # return np.mean(w, axis=1)
+    cv_name = f'{schematic_dict['cell_name']}_workspace_{workspace}'
+
+    schematic = vp.Schematic.from_dict(schematic_dict, schematic_dict['lib_name'], cv_name, ws_name=workspace)
+
+    s = simulation_function(schematic, *sim_args)
+
+    p_values = {}
+    for param_j in range(len(w[0])):
+        p_values[f'w{param_j}'] = w[:, param_j].tolist()
+    
+    s.run(plot_in_v=False, p_values=p_values)
+    
+    if s.run_ok:
+        si = score_function(s, period, len(stim_data['A']))
+        print(si)
+        s.plot()
+    else:
+        si = [None] * len(w[0])
+    
+    schematic.delete_cell_view()
 
     return si
 
@@ -246,75 +280,128 @@ class circuit_optimizer:
         self.options = options
         self.method = None
         self.n_workspaces = n_workspaces
+        self.objective_mins = []
+        self.objective_maxs = []
+        self.objective_history = []
+        self.bad_sims = 0
 
     def get_score_over_workspaces(self, w):
+        # find the number of sims per workspace. This will be 0 if n_workspaces > len(w)
         sims_per_workspace = len(w) // self.n_workspaces
-        leftover = len(w) % self.n_workspaces
-
-        procs_args = []
-
         unix_username = os.getenv('USER')
 
-        for i in range(0, len(w) - leftover, sims_per_workspace):
-            procs_args.append([w[i:i+sims_per_workspace], f'{unix_username}_{i//sims_per_workspace}'])
+        # build the args for each process
+        procs_args = []
+        if sims_per_workspace > 0:
+            # check if the workspaces couldn't evenly divide the required sims
+            leftover = len(w) % self.n_workspaces
 
-        if leftover > 0:
-            remaining_sims_start = len(w) - leftover
-            remaining_sims = leftover
-            current_sim = self.n_workspaces - leftover
+            # distrubute the number of sims per workspace over each workspace
+            # subtracting leftover to be distributed later
+            for i in range(0, len(w) - leftover, sims_per_workspace):
+                procs_args.append([w[i:i+sims_per_workspace], f'{unix_username}_{i//sims_per_workspace}'])
 
-            while remaining_sims > 0:
-                procs_args[current_sim] = [np.append(procs_args[current_sim][0], w[remaining_sims_start:remaining_sims_start+1], axis=0), procs_args[current_sim][1]]
-                current_sim += 1
-                if current_sim >= self.n_workspaces:
-                    current_sim = 0
-                remaining_sims -= 1
-                remaining_sims_start += 1
+            # distribute leftover w one at a time filling up procs_args from the end
+            if leftover > 0:
+                remaining_ws = range(len(w) - leftover, len(w))
+                remaining_sims = range(self.n_workspaces - leftover, self.n_workspaces)
 
-        # print(args)
-        # print(len(args))
-        # for i in args:
-        #     print(len(i[0]))
+                for i, j in zip(remaining_ws, remaining_sims):
+                    procs_args[j][0] = np.append(procs_args[j][0], [w[i]], axis=0)
+        else:
+            # each workspace gets one sim
+            for i in range(0, len(w)):
+                procs_args.append([[w[i]], f'{unix_username}_{i}'])
 
+        # add the remaining args
         for i, args in enumerate(procs_args):
-            workspace = f'{unix_username}_{i//sims_per_workspace}'
-            args.append(vp.Schematic.from_sch(self.schematic,
-                                self.schematic.lib_name,
-                                self.schematic.cell_name + f'_{workspace}',
-                                workspace,
-                                overwrite=True, verbose=False))
-            # print(args[-1])
-            # print(self.schematic)
+            args.append(self.schematic.__dict__())
             args.append(self.simulation_function)
             args.append(self.sim_args)
             args.append(self.score_function)
 
-        with Pool(processes=self.n_workspaces) as pool:
+        # simulate with multiprocessing
+        with Pool(processes=len(procs_args)) as pool:
             results = pool.map(run_sim, procs_args)
 
-        
+        # map the results back to the original order
         mapped_results = []
-        for res in results:
-            for r in res[0:sims_per_workspace]:
-                mapped_results.append(r)
+        if sims_per_workspace > 0:
 
-        if leftover > 0:
-            for res in results[self.n_workspaces - leftover:]:
-                mapped_results.append(res[-1])
-                
+            # the first sims_per_workspace result of each result are placed in order
+            for res in results:
+                for r in res[0:sims_per_workspace]:
+                    mapped_results.append(r)
+
+            # the last leftover result of each result is placed in order
+            if leftover > 0:
+                for res in results[self.n_workspaces - leftover:]:
+                    mapped_results.append(res[-1])
+        else:
+            # everything is already in order
+            for res in results:
+                if len(res) > 0:
+                    for r in res:
+                        mapped_results.append(r)
 
         return mapped_results
+        
 
     def get_score(self, w):
-
         if self.n_workspaces > 1:
-            return self.get_score_over_workspaces(w)
-        
-        si = run_sim([w, self.schematic, self.simulation_function, self.sim_args, self.score_function])
-        return si
+            # run in parallel with multiprocessing
+            results = self.get_score_over_workspaces(w)
+        else:
+            # run sequentially 
+            results = run_sim([w, "default", self.schematic.__dict__(), self.simulation_function, self.sim_args, self.score_function])
 
+        # consider the case for multi objective and filter out None results
+        pso_results = []
+        results_for_history = []
+        for r in results:
+            # the simulation result was bad
+            if r is None:
+                pso_results.append(np.inf)
+                self.bad_sims += 1
+                continue
 
+            results_for_history.append(r)
+            # this is the case for multi-objective optimization
+            if isinstance(r, list) or isinstance(r, np.ndarray) or isinstance(r, tuple):
+                # normalize the objectives
+                if len(self.objective_maxs) == 0:
+                    self.objective_maxs = [r[i] for i in range(len(r))]
+                    self.objective_mins = [r[i] for i in range(len(r))]
+                else:
+                    for i in range(len(r)):
+                        if r[i] > self.objective_maxs[i]:
+                            self.objective_maxs[i] = r[i]
+                        if r[i] < self.objective_mins[i]:
+                            self.objective_mins[i] = r[i]
 
+                normalized_r = []
+                for i in range(len(r)):
+                    den = self.objective_maxs[i] - self.objective_mins[i]
+                    if den == 0:
+                        den = self.objective_maxs[i]
+                        normalized_r.append(r[i] / den)
+                    else:
+                        normalized_r.append((r[i] - self.objective_mins[i]) / den)
+
+                # append the mean of the normalized objectives
+                pso_results.append(np.mean(normalized_r))
+            else:
+                # single-objective optimization
+                pso_results.append(r)
+
+        self.objective_history.append(np.array(results_for_history))
+
+        return pso_results
+    
+    def test(self):
+        w = np.random.rand(2, len(self.schematic.param_vars)) * (self.bounds[1] - self.bounds[0]) + self.bounds[0]
+
+        results = run_test([w, "default", self.schematic.__dict__(), self.simulation_function, self.sim_args, self.score_function])
 
 
 if __name__ == '__main__':
@@ -327,12 +414,7 @@ if __name__ == '__main__':
     }
 
     options = {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
-    n_particles = 2
-
-    # w = [np.ones(n_fets) * i * 10 for i in range(n_particles)]
-    # print(f'Initial weights: {w}')
-    # print(f'mean weights: {np.mean(w, axis=1)}')
-    # get_score(w, period, stim_data)
+    n_particles = 200
 
     sch = create_adder()
     n_fets = len(sch.param_vars)
@@ -346,13 +428,30 @@ if __name__ == '__main__':
                      n_particles=n_particles,
                      bounds=bounds,
                      options=options,
-                     n_workspaces=1)
+                     n_workspaces=10)
 
-    optimizer = GlobalBestPSO(n_particles=n_particles, dimensions=n_fets, options=options, bounds=bounds)
-    cost, pos = optimizer.optimize(opt.get_score, iters=2)
+    opt.test()
+    # w = [np.ones(n_fets) * i * 10 for i in range(n_particles)]
+    # print(f'Initial weights: {w}')
+    # print(f'mean weights: {np.mean(w, axis=1)}')
+    # print(opt.get_score(w))
 
-    print(optimizer.cost_history)
-    print(f'Best cost: {cost}')
-    print(f'Best position: {pos}')
 
-    
+    # optimizer = GlobalBestPSO(n_particles=n_particles, dimensions=n_fets, options=options, bounds=bounds)
+    # cost, pos = optimizer.optimize(opt.get_score, iters=5)
+    # print(optimizer.cost_history)
+    # print(f'Best cost: {cost}')
+    # print(f'Best position: {pos}')
+    # print(f'Bad simulations: {opt.bad_sims}')
+
+
+    sch.close()
+
+    # print(np.array(opt.objective_history).shape)
+    # for i, h in enumerate(opt.objective_history):
+    #     plt.scatter(h[:,0], h[:,1], label=f'Iteration {i}')
+
+    # plt.xlabel('Power')
+    # plt.ylabel('Area')
+    # plt.legend()
+    # plt.show()
