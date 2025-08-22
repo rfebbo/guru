@@ -1,4 +1,4 @@
-import virtuosopy as vp
+import guru as vp
 import numpy as np
 from skillbridge import Workspace
 import numpy as np
@@ -159,7 +159,7 @@ class Layout:
             # self.ws.db.create_pin(net, rect['pin_inst'])#, net_name, term)
             # rect['pin_inst'] = self.ws.db.create_rect(self.cv, [layer, 'label'], l_positions)
 
-            self.ws.db.create_label(self.cv, [layer,'label'], vp.vp_utils.calc_center(l_positions), net_name, 'lowerLeft', 'R0', 'stick', 0.2)
+            self.ws.db.create_label(self.cv, [layer,'label'], vp.utils.calc_center(l_positions), net_name, 'lowerLeft', 'R0', 'stick', 0.2)
             # dbCreateLabel( 
             # d_cellView 
             # txl_layerPurpose

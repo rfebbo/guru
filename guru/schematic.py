@@ -1,34 +1,27 @@
-from .Instance import _Inst, _Params, _Pins, _Pin
+from .instance import _Inst, _Pin
+from .utils import snap_spacing, transform, convert_str_to_num, ConnPos
+
 from skillbridge import Workspace
-from .vp_utils import *
 import numpy as np
-import os
-import atexit
 
 class Schematic:
-    def __init__(self, lib_name, cell_name, ws_name="default", overwrite=False, verbose=True):
+    def __init__(self, workspace : Workspace, lib_name, cell_name, overwrite=False, verbose=True):
+        self.ws = workspace
 
-        if ws_name == "default":
-            unix_username = os.getenv('USER')
-            ws = Workspace.open(workspace_id=f'{unix_username}_0')
-
-        else:
-            ws = Workspace.open(workspace_id=ws_name)
-
+        if self.ws.db.full_lib_path(lib_name) == None:
+            self.lib_id = self.ws.db.create_lib(lib_name)
+            
+            print(f'Created library {lib_name}')
         
-        self.ws = ws
-        self.close_called = False
-        atexit.register(self.cleanup)
-
         if overwrite:
-            cv = ws.db.open_cell_view_by_type(lib_name, cell_name, "schematic",
+            self.cv = self.ws.db.open_cell_view_by_type(lib_name, cell_name, "schematic",
                                           "schematic", "w")
         else:
-            cv = ws.db.open_cell_view_by_type(lib_name, cell_name, "schematic",
+            self.cv = self.ws.db.open_cell_view_by_type(lib_name, cell_name, "schematic",
                                           "schematic", "a")
+            self.load_schematic_contents()
 
 
-        self.cv = cv
         self.lib_name = lib_name
         self.cell_name = cell_name
         self.instances = {}
@@ -43,10 +36,93 @@ class Schematic:
         self.param_vars = []
         self.cdf_ignore = []
 
+    def load_schematic_contents(self):
+        # print(self.ws.db)
+        self.ws.db.write_skill_with_lib(self.cv, 'schematic.il', 'w', '6.1')
+        # self.ws.sch.attach_lib_to_package_tech(self.lib_name)
+
+    def delete_cell_view(self):
+        """
+        Delete the schematic from the database.
+        """
+        if self.verbose:
+            print(f"Deleting {self.lib_name}.{self.cell_name} from {self.ws.name}")
+    
+        self.ws.dd.delete_obj(self.ws.dd.get_obj(self.lib_name, self.cell_name, "schematic"))
+
+    def __dict__(self):
+        s = {}
+
+        s['lib_name'] = self.lib_name
+        s['cell_name'] = self.cell_name
+        s['instances_params'] = self.instances_params
+
+        instances = {}
+        for inst in self.instances:
+            inst_dict = {}
+            for ap in self.instances[inst].applied_params:
+                inst_dict[ap] = self.instances[inst].applied_params[ap]
+            instances[inst] = inst_dict
+
+        s['instances'] = instances
+        s['wires'] = self.wires
+        s['notes'] = self.notes
+        s['pins'] = self.pins
+        s['param_vars'] = self.param_vars
+        s['cdf_ignore'] = self.cdf_ignore
+
+        return s
+
+    @classmethod
+    def from_dict(cls, d, lib_name, cell_name, ws_name="default", overwrite=True, verbose=False):
+        """
+        Create a new schematic object from a dictionary representation.
+        """
+
+
+        new_schematic = cls(lib_name, cell_name, ws_name=ws_name, overwrite=overwrite, verbose=verbose)
+
+        for instances_params in d['instances_params']:
+            inst = _Inst(new_schematic.ws, new_schematic.cv, *instances_params)
+
+            new_schematic.instances[instances_params[3]] = inst
+
+            if instances_params[3] in d['instances']:
+                for ap, value in d['instances'][instances_params[3]].items():
+                    inst[ap] = value
+                
+            new_schematic.instances_params.append(instances_params)
+
+        for pin_params in d['pins']:
+            inputCVId = new_schematic.ws.db.open_cell_view("basic", pin_params[0], "symbol")
+            new_schematic.ws.sch.create_pin(new_schematic.cv, inputCVId, *pin_params[1:])
+            new_schematic.pins.append(pin_params)
+
+        for (wire_params, label_params) in d['wires']:
+            mode, arg2, pos, snap_spacing, snap_spacing, arg6 = wire_params
+            w = new_schematic.ws.sch.create_wire(new_schematic.cv, mode, arg2, pos, snap_spacing,
+                                                snap_spacing, arg6)
+            if label_params is not None:
+                new_schematic.ws.sch.create_wire_label(new_schematic.cv, w[0], *label_params)
+
+            new_schematic.wires.append((wire_params, label_params))
+
+        for note_params in d['notes']:
+            new_schematic.ws.sch.create_note_label(new_schematic.cv, *note_params)
+            new_schematic.notes.append(note_params)
+
+        new_schematic.param_vars = d['param_vars'].copy()
+        new_schematic.cdf_ignore = d['cdf_ignore'].copy()
+
+        new_schematic.save()
+
+
+        return new_schematic
+
     @classmethod
     def from_sch(cls, sch, lib_name, cell_name, ws_name, overwrite=False, verbose=True):
         """
-        Create a new Schematic object from an existing Schematic object.
+        Create a new schematic object from an existing schematic object.
         """
 
         new_schematic = cls(lib_name, cell_name, ws_name=ws_name, overwrite=overwrite, verbose=verbose)
@@ -140,6 +216,23 @@ class Schematic:
         w = self.ws.sch.create_wire(self.cv, mode, "full", pos, snap_spacing,
                                     snap_spacing, 0.0)
         
+        # if net_name == 'Sum_b':
+        #     print(f'Creating wire with net name: {net_name} at positions: {pos}')
+        #     print(f'Wire params: {w}')
+        #     print(f'wire dir {dir(w[0])}')
+        #     print(f'wire dir {w[0].points}')
+        #     print(f'wire dir {w[1].points}')
+        #     print(f'wire dir {w[2].points}')
+        #     print(self.ws.sch.create_wire)
+        #     raise
+
+        points = []
+        if w is not None:
+            for wi in w:
+                points.append(wi.points)
+        
+        print(points)
+
         wire_params = (mode, "full", pos.copy(), snap_spacing, snap_spacing, 0.0)
         
         label_params = None
@@ -231,7 +324,7 @@ class Schematic:
         rv = 0
         for _, i in self.instances.items():
             for a_p_name, a_p_value in i.applied_params.items():
-                if a_p_value == '' or a_p_value in self.param_vars or a_p_value in self.cdf_ignore:
+                if a_p_value == '' or a_p_value in self.param_vars or a_p_value in self.cdf_ignore or a_p_name == 'model':
                     break
                 
                 calc_val = i.params[a_p_name].value
@@ -275,12 +368,8 @@ class Schematic:
         self.ws.db.save(self.cv)
         return rv
     
-    def cleanup(self):
-        if self.close_called == False:
-            self.close()
 
-    def close(self, purge=False):
-        self.close_called = True
+    def close(self, purge=True):
         if purge:
             self.ws.db.purge(self.cv)
         self.ws.close()
