@@ -5,6 +5,7 @@ guru is a Python interface to Cadence Virtuoso and uses the Python library [skil
 See Examples directory or **Usage** section below for more information.
 
 ## **Getting Started**
+### installing anaconda is not needed if you have sudo
 1. Install anaconda (link is of date). Go to anaconda.com and right click on the green Linux download button and copy link to get an updated link.
 
         cd ~/Downloads
@@ -13,7 +14,7 @@ See Examples directory or **Usage** section below for more information.
         ./Anaconda3-2025.06-0-Linux-x86_64.sh
 
 1. Restart terminal
-1. Disable activation of conda at startup
+1. Disable activation of conda at startup (optional)
 
         conda config --set auto_activate_base false
 
