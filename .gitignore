@@ -4,3 +4,5 @@ launch_scripts/skill_launch_files
 **/guru.egg-info
 .vscode
 **/projects
+model/
+*_pads.csv

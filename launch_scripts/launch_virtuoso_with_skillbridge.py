@@ -5,8 +5,10 @@ import sys
 import re
 
 
-# project_dir = '~/cadence/pdk/openpdk'
-project_dir = '~/cadence/NCSU/FreePDK15/kit'
+# Directory of the PDK / tech workspace to launch Virtuoso from.
+# Override for your setup by exporting GURU_PROJECT_DIR, e.g.
+#   export GURU_PROJECT_DIR=~/cadence/my_pdk/kit
+project_dir = os.path.expanduser(os.getenv('GURU_PROJECT_DIR', '~/cadence/NCSU/FreePDK15/kit'))
 
 def main(args):
     if len(args) == 0:
