@@ -39,11 +39,14 @@ See Examples directory or **Usage** section below for more information.
 
 1. Start Virtuoso (in VNC session terminal) (Note: troubleshooting below for manual launch)
 
-    By default the launch script starts Virtuoso from `~/cadence/NCSU/FreePDK15/kit`. Point it at your own PDK/tech workspace by exporting `GURU_PROJECT_DIR` first:
+    By default the launch script starts Virtuoso from `~/cadence/NCSU/FreePDK15/kit`. To point it at your own PDK/tech workspace, copy the example config once and edit the path (the file is git-ignored, so your local path is never committed):
 
-        export GURU_PROJECT_DIR=~/cadence/my_pdk/kit
         cd launch_scripts
+        cp project_dir.local.example project_dir.local
+        # edit project_dir.local so it contains the path to your PDK kit
         python ./launch_virtuoso_with_skillbridge.py
+
+    (Alternatively, set `GURU_PROJECT_DIR` in the environment, which overrides the file.)
 
 ## Running the NCSU example
 

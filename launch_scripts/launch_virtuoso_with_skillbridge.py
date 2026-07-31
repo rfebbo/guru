@@ -5,10 +5,26 @@ import sys
 import re
 
 
-# Directory of the PDK / tech workspace to launch Virtuoso from.
-# Override for your setup by exporting GURU_PROJECT_DIR, e.g.
-#   export GURU_PROJECT_DIR=~/cadence/my_pdk/kit
-project_dir = os.path.expanduser(os.getenv('GURU_PROJECT_DIR', '~/cadence/NCSU/FreePDK15/kit'))
+# --- PDK / tech workspace directory to launch Virtuoso from ------------------
+# Resolution order (first match wins):
+#   1. GURU_PROJECT_DIR environment variable   (per-session override)
+#   2. launch_scripts/project_dir.local        (per-machine, git-ignored)
+#   3. default: the open FreePDK15 kit
+# Copy project_dir.local.example -> project_dir.local to set your own path.
+def _resolve_project_dir():
+    env = os.getenv('GURU_PROJECT_DIR')
+    if env:
+        return os.path.expanduser(env.strip())
+    local_cfg = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'project_dir.local')
+    if os.path.isfile(local_cfg):
+        with open(local_cfg) as fh:
+            for line in fh:
+                line = line.split('#', 1)[0].strip()
+                if line:
+                    return os.path.expanduser(line)
+    return os.path.expanduser('~/cadence/NCSU/FreePDK15/kit')
+
+project_dir = _resolve_project_dir()
 
 def main(args):
     if len(args) == 0:

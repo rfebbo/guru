@@ -1,0 +1,9 @@
+# Copy this file to `project_dir.local` (same directory) and set the single
+# line below to the PDK / tech workspace Virtuoso should launch from -- i.e.
+# the directory containing your `toolsenv` and `cds.lib`.
+#
+# `project_dir.local` is git-ignored, so your local path is never committed to
+# either remote. Lines starting with `#` and blank lines are ignored; the first
+# non-comment line is used.
+
+~/cadence/NCSU/FreePDK15/kit
